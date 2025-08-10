@@ -287,46 +287,14 @@
         function initDropbox() {
             if (dbxAccessToken) {
                 dbx = new Dropbox.Dropbox({ 
-                    accessToken: dbxAccessToken
+                    accessToken: dbxAccessToken,
+                    clientId: DROPBOX_KEY
                 });
             }
         }
         
         // Initialize on page load
         initDropbox();
-
-        // Enhanced error handling function
-        async function handleDropboxError(err) {
-            console.error('Dropbox error:', err);
-            
-            // Try to get error details from response
-            let errorMessage = 'Dropbox API error';
-            
-            try {
-                if (err.response) {
-                    // Try to parse as JSON first
-                    try {
-                        const errData = await err.response.json();
-                        if (errData.error_summary) {
-                            errorMessage = errData.error_summary;
-                        } else if (errData.error && errData.error.message) {
-                            errorMessage = errData.error.message;
-                        }
-                    } catch (e) {
-                        // If JSON parse fails, read as text
-                        const text = await err.response.text();
-                        errorMessage = text || err.response.statusText;
-                    }
-                } else if (err.message) {
-                    errorMessage = err.message;
-                }
-            } catch (e) {
-                console.error('Error processing error:', e);
-                errorMessage = 'Unknown error occurred';
-            }
-            
-            return errorMessage;
-        }
 
         // Add item to inventory
         function addItem() {
@@ -589,84 +557,124 @@
         }
         
         async function saveToDropbox() {
-            if (!dbx) {
-                alert('Dropbox connection not initialized. Please reconnect.');
+            if (!dbxAccessToken) {
+                alert('Please connect to Dropbox first');
+                showDropboxModal();
                 return;
             }
             
             try {
+                // Prepare data
                 const data = JSON.stringify({
                     items: inventoryItems,
-                    serial: serialNumber
+                    serial: serialNumber,
+                    timestamp: new Date().toISOString()
                 });
                 
-                try {
-                    await dbx.filesUpload({
-                        path: '/inventory-data.json',
-                        contents: data,
-                        mode: { '.tag': 'overwrite' }
-                    });
-                    alert('Data saved to Dropbox!');
-                } catch (err) {
-                    const errorMessage = await handleDropboxError(err);
-                    
-                    // Handle expired token
-                    if (errorMessage.includes('expired_access_token')) {
-                        handleTokenExpiration();
-                    } else {
-                        alert(`Error saving to Dropbox: ${errorMessage}`);
-                    }
+                // Create a Blob for better compatibility
+                const blob = new Blob([data], { type: 'application/json' });
+                
+                // Upload to Dropbox
+                await dbx.filesUpload({
+                    path: '/inventory-data.json',
+                    contents: blob,
+                    mode: { '.tag': 'overwrite' },
+                    autorename: false,
+                    mute: true
+                });
+                
+                alert('Data saved to Dropbox!');
+            } catch (err) {
+                console.error('Dropbox save error:', err);
+                
+                // Handle token expiration
+                if (err.status === 401) {
+                    handleTokenExpiration();
+                    return;
                 }
-            } catch (e) {
-                console.error('Error in saveToDropbox:', e);
-                alert(`Error: ${e.message}`);
+                
+                let errorMessage = 'Error saving to Dropbox';
+                
+                if (err.error) {
+                    // Dropbox SDK error format
+                    if (err.error.error_summary) {
+                        errorMessage += `: ${err.error.error_summary}`;
+                    }
+                    else if (err.error.message) {
+                        errorMessage += `: ${err.error.message}`;
+                    }
+                } 
+                else if (err.message) {
+                    errorMessage += `: ${err.message}`;
+                }
+                
+                alert(errorMessage);
             }
         }
         
         async function loadFromDropbox() {
-            if (!dbx) {
-                alert('Dropbox connection not initialized. Please reconnect.');
+            if (!dbxAccessToken) {
+                alert('Please connect to Dropbox first');
+                showDropboxModal();
                 return;
             }
             
             try {
-                try {
-                    const res = await dbx.filesDownload({ path: '/inventory-data.json' });
-                    const reader = new FileReader();
-                    
-                    return new Promise((resolve) => {
-                        reader.onload = function() {
-                            try {
-                                const data = JSON.parse(reader.result);
-                                inventoryItems = data.items || [];
-                                serialNumber = data.serial || 1;
-                                refreshTable();
-                                updateGrandTotal();
-                                alert('Data loaded from Dropbox!');
-                                resolve();
-                            } catch (e) {
-                                console.error('JSON parse error:', e);
-                                alert('Error parsing Dropbox data: ' + e.message);
-                                resolve();
-                            }
-                        };
-                        reader.readAsText(res.fileBlob);
-                    });
-                } catch (err) {
-                    const errorMessage = await handleDropboxError(err);
-                    
-                    // Handle expired token
-                    if (errorMessage.includes('expired_access_token')) {
-                        handleTokenExpiration();
-                    } else if (err.status === 409) {
-                        alert("No saved data found in Dropbox");
-                    } else {
-                        alert(`Error loading from Dropbox: ${errorMessage}`);
-                    }
+                // Download from Dropbox
+                const res = await dbx.filesDownload({ 
+                    path: '/inventory-data.json' 
+                });
+                
+                const reader = new FileReader();
+                
+                return new Promise((resolve) => {
+                    reader.onload = function() {
+                        try {
+                            const data = JSON.parse(reader.result);
+                            inventoryItems = data.items || [];
+                            serialNumber = data.serial || 1;
+                            refreshTable();
+                            updateGrandTotal();
+                            alert('Data loaded from Dropbox!');
+                            resolve();
+                        } catch (e) {
+                            console.error('JSON parse error:', e);
+                            alert('Error parsing Dropbox data: ' + e.message);
+                            resolve();
+                        }
+                    };
+                    reader.readAsText(res.fileBlob);
+                });
+            } catch (err) {
+                console.error('Dropbox load error:', err);
+                
+                // Handle token expiration
+                if (err.status === 401) {
+                    handleTokenExpiration();
+                    return;
                 }
-            } catch (e) {
-                console.error('Error in loadFromDropbox:', e);
-                alert(`Error: ${e.message}`);
+                
+                let errorMessage = 'Error loading from Dropbox';
+                
+                if (err.error) {
+                    // Dropbox SDK error format
+                    if (err.error.error_summary) {
+                        errorMessage += `: ${err.error.error_summary}`;
+                    }
+                    else if (err.error.message) {
+                        errorMessage += `: ${err.error.message}`;
+                    }
+                } 
+                else if (err.message) {
+                    errorMessage += `: ${err.message}`;
+                }
+                
+                // Handle file not found
+                if (errorMessage.includes('not_found') || errorMessage.includes('404')) {
+                    alert("No saved data found in Dropbox");
+                } else {
+                    alert(errorMessage);
+                }
             }
         }
         
@@ -690,7 +698,10 @@
                     localStorage.setItem('dbxToken', token);
                     dbxAccessToken = token;
                     initDropbox();
+                    
+                    // Clear URL hash to prevent re-triggering
                     window.location.hash = '';
+                    
                     alert('Dropbox connected successfully!');
                 }
             } catch (e) {
