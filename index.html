@@ -309,10 +309,11 @@
         let serialNumber = 1;
         const grandTotalElement = document.getElementById('grandTotal');
         
-        // Dropbox configuration
+        // Dropbox configuration - NEW FOLDER STRUCTURE
         const DROPBOX_KEY = "9k78qbuusdtiynj";
         const DROPBOX_REDIRECT_URI = "https://dj07082003.github.io/inventory-manager/";
-        const DROPBOX_APP_FOLDER = "/Inventory Manager 001/"; // Fixed app folder name
+        const DROPBOX_APP_FOLDER = "/Inventory-Manager-Data/"; // NEW FOLDER NAME
+        const DROPBOX_FILE_NAME = "inventory-data.json"; // Consistent filename
         let dbxAccessToken = localStorage.getItem('dbxToken') || null;
         let dbx = null;
         
@@ -616,7 +617,7 @@
         }
         
         // =====================
-        // DROPBOX SYNC FUNCTIONS (FIXED)
+        // DROPBOX SYNC FUNCTIONS (NEW IMPLEMENTATION)
         // =====================
         function showDropboxModal() {
             try {
@@ -653,6 +654,20 @@
             }
         }
         
+        // Create Dropbox folder if it doesn't exist
+        async function ensureDropboxFolder() {
+            try {
+                await dbx.filesGetMetadata({ path: DROPBOX_APP_FOLDER });
+            } catch (error) {
+                if (error.status === 409) { // Not found error
+                    await dbx.filesCreateFolderV2({ path: DROPBOX_APP_FOLDER });
+                    console.log("Created Dropbox folder:", DROPBOX_APP_FOLDER);
+                } else {
+                    throw error;
+                }
+            }
+        }
+        
         async function saveToDropbox() {
             try {
                 if (!dbxAccessToken) {
@@ -665,6 +680,9 @@
                     initDropbox();
                 }
                 
+                // Ensure folder exists
+                await ensureDropboxFolder();
+                
                 // Prepare data
                 const data = JSON.stringify({
                     items: inventoryItems,
@@ -672,13 +690,10 @@
                     timestamp: new Date().toISOString()
                 });
                 
-                // Create a Blob for better compatibility
-                const blob = new Blob([data], { type: 'application/json' });
-                
-                // Upload to Dropbox in the correct app folder
+                // Upload to Dropbox
                 await dbx.filesUpload({
-                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`,
-                    contents: blob,
+                    path: `${DROPBOX_APP_FOLDER}${DROPBOX_FILE_NAME}`,
+                    contents: data,
                     mode: { '.tag': 'overwrite' },
                     autorename: false,
                     mute: true
@@ -724,12 +739,12 @@
                     initDropbox();
                 }
 
-                // Download from Dropbox from the correct app folder
+                // Download from Dropbox
                 const response = await dbx.filesDownload({ 
-                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`
+                    path: `${DROPBOX_APP_FOLDER}${DROPBOX_FILE_NAME}`
                 });
 
-                // FIXED: Access fileBinary through response.result
+                // Check if we have file content
                 if (!response.result || !response.result.fileBinary) {
                     throw new Error("No file data received from Dropbox");
                 }
