@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mobile Inventory Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="极://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax极/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://unpkg.com/dropbox@10.0.0/dist/Dropbox-sdk.min.js"></script>
     <style>
@@ -110,7 +110,7 @@
         }
         
         @media (max-width: 768px) {
-            .table th, .table td {
+            .table th, .极able td {
                 padding: 0.5rem;
                 font-size: 0.85rem;
             }
@@ -258,7 +258,7 @@
                     <div id="dropbox-sync" style="display:none">
                         <div class="alert alert-info">
                             <i class="fas fa-info-circle me-2"></i>Connected to Dropbox
-                        </极>
+                        </div>
                         <div class="dropbox-buttons">
                             <button class="btn btn-success" onclick="saveToDropbox()">
                                 <i class="fas fa-cloud-upload-alt me-2"></i>Upload to Cloud
@@ -312,6 +312,7 @@
         // Dropbox configuration
         const DROPBOX_KEY = "9k78qbuusdtiynj";
         const DROPBOX_REDIRECT_URI = "https://dj07082003.github.io/inventory-manager/";
+        const DROPBOX_APP_FOLDER = "/Inventory Manager 001/"; // Fixed app folder name
         let dbxAccessToken = localStorage.getItem('dbxToken') || null;
         let dbx = null;
         
@@ -319,7 +320,7 @@
         function initDropbox() {
             try {
                 if (dbxAccessToken) {
-                    db极 = new Dropbox.Dropbox({ 
+                    dbx = new Dropbox.Dropbox({ 
                         accessToken: dbxAccessToken,
                         clientId: DROPBOX_KEY
                     });
@@ -526,7 +527,7 @@
                 });
                 
                 // Add grand total
-                const grandTotal = inventoryItems.reduce((sum, item) => sum + item.total, 0);
+                const grandTotal = inventoryItems.reduce((sum, item)极 sum + item.total, 0);
                 csv += `,,,,,,,,,,Grand Total,${grandTotal}\n`;
                 
                 // Create download link
@@ -615,7 +616,7 @@
         }
         
         // =====================
-        // FIXED DROPBOX SYNC FUNCTIONS
+        // DROPBOX SYNC FUNCTIONS (FIXED DOWNLOAD)
         // =====================
         function showDropboxModal() {
             try {
@@ -671,10 +672,13 @@
                     timestamp: new Date().toISOString()
                 });
                 
-                // Upload to Dropbox in the root folder
+                // Create a Blob
+                const blob = new Blob([data], { type: 'application/json' });
+                
+                // Upload to Dropbox in the correct app folder
                 await dbx.filesUpload({
-                    path: '/inventory-data.json',
-                    contents: data,
+                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`,
+                    contents: blob,
                     mode: { '.tag': 'overwrite' },
                     autorename: false,
                     mute: true
@@ -720,21 +724,19 @@
                     initDropbox();
                 }
 
-                // Download from Dropbox
+                // Download from Dropbox from the correct app folder
                 const response = await dbx.filesDownload({ 
-                    path: '/inventory-data.json'
+                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`
                 });
 
-                // Check if we have fileBlob
+                // FIXED: Use FileReader to process fileBlob
                 if (!response.result || !response.result.fileBlob) {
                     throw new Error("No file data received from Dropbox");
                 }
 
-                // Use FileReader to read the blob
-                const reader = new FileReader();
-                reader.readAsText(response.result.fileBlob);
-                
                 return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    
                     reader.onload = function() {
                         try {
                             const data = JSON.parse(reader.result);
@@ -763,6 +765,8 @@
                         alert(`Error reading Dropbox file: ${reader.error}`);
                         resolve();
                     };
+                    
+                    reader.readAsText(response.result.fileBlob);
                 });
             } catch (err) {
                 console.error('Dropbox download error:', err);
