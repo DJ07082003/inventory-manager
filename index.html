@@ -729,15 +729,13 @@
                     path: `${DROPBOX_APP_FOLDER}inventory-data.json`
                 });
 
-                // FIXED: Use fileBinary instead of fileBlob
-                const fileBinary = response.fileBinary;
-                
-                if (!fileBinary) {
+                // FIXED: Access fileBinary through response.result
+                if (!response.result || !response.result.fileBinary) {
                     throw new Error("No file data received from Dropbox");
                 }
 
                 // Convert binary data to string
-                const dataStr = new TextDecoder().decode(fileBinary);
+                const dataStr = new TextDecoder().decode(response.result.fileBinary);
                 const data = JSON.parse(dataStr);
                 
                 if (!data.items) {
