@@ -677,7 +677,7 @@
                 
                 // Upload to Dropbox in the correct app folder
                 await dbx.filesUpload({
-                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`,
+                    path: `${DROPBOX_Inventory_Manager_001}inventory-data.json`,
                     contents: blob,
                     mode: { '.tag': 'overwrite' },
                     autorename: false,
@@ -726,7 +726,7 @@
                 
                 // Download from Dropbox from the correct app folder
                 const response = await dbx.filesDownload({ 
-                    path: `${DROPBOX_APP_FOLDER}inventory-data.json`
+                    path: `${DROPBOX_Inventory_Manager_001}inventory-data.json`
                 });
                 
                 if (!response.fileBlob) {
